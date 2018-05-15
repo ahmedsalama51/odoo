@@ -1,0 +1,160 @@
+# -*- coding: utf-8 -*-
+from openerp import models, fields, api, _
+from openerp.exceptions import Warning
+from odoo.exceptions import ValidationError
+from num2words.lang_AR import Num2Word_AR
+
+## Ahmed Salama Code Start ---->
+class account_bank_statement_changes(models.Model):
+    _inherit = 'account.bank.statement'
+
+    discharge = fields.Selection(string ='Discharge' , selection=[('from','Pay To'),('to','Income From')],default='from')
+    seq = fields.Integer(string='Sequence', readonly=True, copy=False)
+    receival_name = fields.Char(string="Receivable Name",)
+    
+    actual_rate = fields.Float(digits=(12, 6),string="Exchange Rate",
+                               help="Get last Journal Currency Rate ",
+                               compute='get_journal_curr_actual_rate')
+    
+    @api.multi
+    @api.onchange('journal_id')
+    def get_journal_curr_actual_rate(self):
+        """
+        Get last Journal Currency Rate
+        :return:
+        """
+        if self.journal_id and self.journal_id.currency_id:
+            rate_obj = self.env['res.currency.rate']
+            rate = rate_obj.search([('currency_id','=',self.journal_id.currency_id.id), ('name', '<=', self.create_date)],order='create_date DESC',limit=1)
+            if rate:
+                self.actual_rate = rate.actual_rate
+
+    @api.multi
+    @api.onchange('date')
+    def onchange_date(self):
+        """
+        Date field in lines is related to parent model
+        :return:
+        """
+        for line in self.line_ids:
+            line.date = self.date
+
+    @api.onchange('balance_end_real','balance_start')
+    @api.multi
+    def get_total_diff(self):
+        """
+        total diffrance = End - Start
+        :return:
+        """
+        for rec in self:
+            rec.total_diffrance = rec.balance_end_real - rec.balance_start
+            # rec.total_diffrance = rec.balance_end_real - rec.balance_end
+
+    total_diffrance = fields.Float(string="Total Movement",compute=get_total_diff)
+
+    @api.model
+    def create(self, vals):
+        """
+        in case of يصرف إلى the amount of lines must be negative
+        :param vals:
+        :return:
+        """
+
+        res = super(account_bank_statement_changes, self).create(vals)
+        if res.discharge == 'from':
+            for line in res.line_ids:
+                if line.amount > 0:
+                    line.write({'amount':- line.amount})
+        return res
+
+    @api.multi
+    def write(self, vals):
+        """
+        in case of يصرف إلى the amount of lines must be negative
+        :param vals:
+        :return:
+        """
+        super(account_bank_statement_changes, self).write(vals)
+        if self.discharge == 'from':
+            for line in self.line_ids:
+                if line.amount > 0:
+                    line.write({'amount': - line.amount})
+        return True
+
+    ## Ahmed Salama Code End.
+
+    # """
+    # Dalia start
+    # """
+    @api.multi
+    def check_confirm_bank(self):
+        if not self.seq:
+            statements = self.search([('journal_id', '=', self.journal_id.id), ('discharge', '=', self.discharge)])
+            seqs = [st.seq for st in statements]
+            new_seq = (max(seqs) + 1)
+
+            self.write({'seq': new_seq})
+        return super(account_bank_statement_changes, self).check_confirm_bank()
+
+    @api.constrains('seq')
+    def _check_seq(self):
+        """
+        Add constrain on statements to add sequence only 1 time for each statement
+        :return:
+        """
+        for rec in self:
+            statement = self.search([('journal_id', '=', self.journal_id.id), ('discharge', '=', self.discharge),
+                                      ('seq', '=', rec.seq)])
+            if len(statement) > 1:
+                raise ValidationError(_(
+                    'Error! You cannot add two statements with the same sequence in the same journal.'))
+        return True
+
+    # """
+    # Dalia end
+    # """
+
+    # umar aziz Arabic Money Localization >>>>>>>>>>>>>>>>>
+
+    # @api.multi
+    # def amount_to_text(self, amount):
+    #     class Num2Word_AR_EG(Num2Word_AR):
+    #         def to_currency(self, val, longval=True):
+    #             return self.to_splitnum(amount, hightxt=u"جنيها", lowtxt=u"قرشا",
+    #                                     jointxt=u"و", longval=longval, cents=True)
+    #     num2AR = Num2Word_AR_EG()
+    #     return num2AR.to_currency(amount)
+    # umar aziz <<<<<<<<<<<<<<<<<<<
+
+
+class account_bank_statement_line_changes(models.Model):
+    _inherit = 'account.bank.statement.line'
+
+    @api.multi
+    def get_account_name(self):
+        for rec in self:
+            account = []
+            line_ids = self.env['account.move'].search([('name', '=', rec.move_name)]).line_ids
+            if line_ids:
+                for line in line_ids:
+                    account.append(line.account_id.name)
+                rec.account_name = account[1]
+                
+    def fast_counterpart_creation(self):
+        for st_line in self:
+            # Technical functionality to automatically reconcile by creating a new move line
+            vals = {
+                'name': st_line.name,
+                'debit': st_line.amount < 0 and -st_line.amount or 0.0,
+                'credit': st_line.amount > 0 and st_line.amount or 0.0,
+                'account_id': st_line.account_id.id,
+                'analytic_account_id': st_line.analytic_account_id.id,
+            }
+            st_line.process_reconciliation(new_aml_dicts=[vals])
+    account_name = fields.Char(string='Account Name', compute='get_account_name')
+    analytic_account_id = fields.Many2one(comodel_name='account.analytic.account',
+                                          string="Analytic Account",
+                                          help="It used to select analytic account that will be used or move entery")
+    journal_id = fields.Many2one('account.journal', string='Journal', readonly=False)
+
+    discharge = fields.Selection(string ='Discharge',selection=[('from','Pay To'),('to','Income From')])

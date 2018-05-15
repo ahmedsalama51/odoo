@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Form -->
+    <record id="view_account_bank_statement_view_inherited" model="ir.ui.view">
+        <field name="name">view.account.bank.statement.view.inherited</field>
+        <field name="model">account.bank.statement</field>
+        <field name="inherit_id" ref="account.view_bank_statement_form"/>
+        <field name="arch" type="xml">
+            <xpath expr='//field[@name="journal_id"]' position="before">
+                <field name="seq" string="مسلسل"/>
+            </xpath>
+            <xpath expr='//field[@name="company_id"]' position="after">
+                <field name="discharge" widget="radio" attrs="{'readonly':[('state','=','confirm')]}"/>
+                <field name="receival_name"/>
+            </xpath>
+            <xpath expr="//field[@name='line_ids']" position="replace">
+                <field name="line_ids" context="{'date':date,'default_journal_id':journal_id,'default_discharge':discharge}">
+                    <tree editable="bottom" string="Statement lines" decoration-muted="journal_entry_ids">
+                        <field name="sequence"  widget="handle"/>
+                        <field name="journal_entry_ids" invisible="1"/>
+                        <!--<field name="date" attrs="{'readonly' : [('journal_entry_ids', '!=', [])] }"/>-->
+                        <field name="date" readonly="1"/>
+                        <field name="name" attrs="{'readonly' : [('journal_entry_ids', '!=', [])] }"/>
+                        <field name="partner_id" domain="['|',('parent_id','=',False),('is_company','=',True)]"
+                               context="{'default_supplier': 1}"
+                               attrs="{'readonly' : [('journal_entry_ids', '!=', [])] }"/>
+                        <field name="account_id" string="Account" />
+                        <field name="analytic_account_id"/>
+                        <field name="journal_id" invisible="1"/>
+                        <field name="discharge" invisible="1"/>
+                        <field name="ref" attrs="{'readonly' : [('journal_entry_ids', '!=', [])] }" groups="base.group_no_one"/>
+                        <field name="amount" attrs="{'readonly' : [('journal_entry_ids', '!=', [])] }"/>
+                        <field name="journal_currency_id" invisible="1"/>
+                        <field name="amount_currency" invisible="1" attrs="{'readonly' : [('journal_entry_ids', '!=', [])] }"/>
+                        <field name="currency_id" options="{'no_create': True}" invisible="1" attrs="{'readonly' : [('journal_entry_ids', '!=', [])] }"/>
+                        <field name="bank_account_id" invisible="1" attrs="{'readonly' : [('journal_entry_ids', '!=', [])] }"
+                               domain="['|', ('partner_id', '=', partner_id), ('partner_id', '=', False)]"/>
+                    </tree>
+                </field>
+            </xpath>
+            <!--<xpath expr="//button[@name='check_confirm_bank']" position="attributes">-->
+            <!--<attribute name="groups">prifix_account_bank_statement.group_validate_bank_statment</attribute>-->
+            <!--</xpath>-->
+            <xpath expr="//button[@name='button_cancel']" position="replace"/>
+            <xpath expr="//sheet/group/group[2]" position="inside">
+                <field name="total_diffrance"/>
+                <field name="actual_rate"/>
+            </xpath>
+
+
+        </field>
+    </record>
+    <!--<record id="bank_statement_draft_form_inherit2" model="ir.ui.view">-->
+        <!--<field name="name">bank.statement.draft.form.inherit2</field>-->
+        <!--<field name="model">account.bank.statement</field>-->
+        <!--<field name="inherit_id" ref="account_cancel.bank_statement_draft_form_inherit"/>-->
+        <!--<field name="arch" type="xml">-->
+
+            <!--&lt;!&ndash;<xpath expr="//button[@name='button_draft']" position="attributes">&ndash;&gt;-->
+            <!--&lt;!&ndash;<attribute name="groups">prifix_account_bank_statement.group_validate_bank_statment</attribute>&ndash;&gt;-->
+            <!--&lt;!&ndash;</xpath>&ndash;&gt;-->
+
+        <!--</field>-->
+    <!--</record>-->
+    <record id="view_bank_statement_tree_inherit" model="ir.ui.view">
+        <field name="name">account.bank.statement.tree.inherit</field>
+        <field name="model">account.bank.statement</field>
+        <field name="inherit_id" ref="account.view_bank_statement_tree"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//field[@name='name']" position="before">
+                <field name="seq" string="مسلسل"/>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>
